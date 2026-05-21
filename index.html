@@ -7,15 +7,18 @@
   <meta name="description" content="URLs publiques des environnements de debug pour les apps TV France TV (Smart TV / Orange / SFR / Free).">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14'%3E📺%3C/text%3E%3C/svg%3E">
   <style>
-    :root { --bg:#0f0f12; --card:#1a1a20; --border:#2a2a33; --text:#e9eaee; --muted:#8a8d99; --acc:#7c3aed; --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+    :root { --bg:#0f0f12; --card:#1a1a20; --border:#2a2a33; --text:#e9eaee; --muted:#8a8d99; --acc:#7c3aed; --acc-strong:#9b5cff; --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --focus:#fbbf24; }
     * { box-sizing: border-box; }
     body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
     header { padding: 32px 24px 8px; max-width: 980px; margin: 0 auto; }
+    /* Header bar — title on the left, refresh button on the right. Wraps on
+       narrow screens so the title keeps priority. */
+    .header-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
     header h1 { margin:0 0 4px; font-size: 24px; font-weight: 600; }
     header p { margin: 0; color: var(--muted); font-size: 13px; }
     main { max-width: 980px; margin: 0 auto; padding: 16px 24px 48px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; transition: border-color 150ms; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; transition: border-color 150ms, transform 120ms; }
     .card:hover { border-color: var(--acc); }
     .card-head { display:flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
     .app { font-size: 16px; font-weight: 600; }
@@ -27,7 +30,7 @@
     .branch a { color: inherit; text-decoration: none; }
     .branch a:hover { text-decoration: underline; }
     .desc { font-size: 13px; color: var(--text); opacity: .85; margin-bottom: 14px; min-height: 40px; }
-    .url-btn { display:flex; align-items:center; gap:8px; background: var(--acc); color: #fff; padding: 9px 14px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600; transition: opacity 150ms; word-break: break-all; }
+    .url-btn { display:flex; align-items:center; gap:8px; background: var(--acc); color: #fff; padding: 9px 14px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600; transition: opacity 150ms, transform 120ms, box-shadow 120ms; word-break: break-all; }
     .url-btn:hover { opacity: .9; }
     .url-btn::after { content: "↗"; margin-left: auto; font-size: 14px; opacity:.8; }
     .url-btn.disabled { background: var(--border); color: var(--muted); pointer-events: none; cursor: not-allowed; }
@@ -36,6 +39,57 @@
     footer code { background: rgba(255,255,255,.05); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
     .legend { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
     .legend code { background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 3px; font-size: 11px; color: var(--text); }
+
+    /* ─── Refresh button — reachable both by mouse and TV remote ─── */
+    .refresh-btn {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 120ms, border-color 120ms, transform 120ms, box-shadow 120ms;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .refresh-btn:hover { background: rgba(124,58,237,.12); border-color: var(--acc); }
+    .refresh-btn.is-spinning .refresh-icon { animation: spin 600ms linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* ─── TV remote focus — visible at 3m on a 4K TV ───────────────
+       The default browser outline is barely visible on TV screens
+       (1-2px, neutral colour). We override with a thick gold ring +
+       a soft glow + a 4 % scale so the focus is obvious from a
+       living-room distance. */
+    :focus { outline: none; }
+    .tv-focusable { /* applied via JS to every navigable item */ }
+    .tv-focusable:focus,
+    .tv-focusable:focus-visible {
+      outline: 4px solid var(--focus);
+      outline-offset: 4px;
+      box-shadow: 0 0 32px 4px rgba(251,191,36,.45);
+      transform: scale(1.04);
+      z-index: 10;
+      position: relative;
+    }
+    /* Cards highlight when one of their children is focused, so the
+       eye reads the WHOLE card as the focus target on TV. */
+    .card:focus-within { border-color: var(--acc-strong); }
+
+    /* ─── On-screen TV remote legend — hidden on desktop, shown
+       on large screens (typically TVs). Helps users discover that
+       arrows + Enter work. Hidden behind a media query so it
+       doesn't clutter the desktop preview. */
+    .remote-legend { display: none; gap: 16px; align-items: center; font-size: 11px; color: var(--muted); }
+    .remote-legend kbd { font-family: ui-monospace, "SF Mono", Menlo, monospace; background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 11px; color: var(--text); }
+    @media (min-width: 1280px) {
+      .remote-legend { display: inline-flex; }
+    }
+
     @media (max-width: 480px) {
       header { padding: 24px 16px 4px; }
       main { padding: 12px 16px 32px; }
@@ -44,7 +98,19 @@
 </head>
 <body>
   <header>
-    <h1>📺 FTV TV Apps — Previews debug</h1>
+    <div class="header-bar">
+      <h1>📺 FTV TV Apps — Previews debug</h1>
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+        <span class="remote-legend">
+          <span><kbd>↑↓←→</kbd> naviguer</span>
+          <span><kbd>OK</kbd> ouvrir</span>
+        </span>
+        <button id="refreshBtn" class="refresh-btn" type="button" aria-label="Rafraîchir la page">
+          <span class="refresh-icon" aria-hidden="true">🔄</span>
+          <span>Rafraîchir</span>
+        </button>
+      </div>
+    </div>
     <p>URLs publiques actives des environnements de debug pour les 4 applications TV France Télévisions. Tunnel ngrok via le Mac de Maximilien — peut être éteint à tout moment.</p>
     <p class="legend">⚠ Les URLs peuvent rendre une page d'avertissement ngrok au premier load (free tier) — clique « Visit Site ».</p>
   </header>
@@ -62,7 +128,176 @@
     </div>
   </main>
   <footer>
-    <p>Généré le <span id="ts">2026-05-20 13:21 UTC</span> · Source : <code>scripts/publish-previews-page.mjs</code> dans le repo <a href="https://github.com/maximilienbornepro/tech-review" style="color:inherit">tech-review</a> (privé).</p>
+    <p>Généré le <span id="ts">2026-05-21 07:49 UTC</span> · Source : <code>scripts/publish-previews-page.mjs</code> dans le repo <a href="https://github.com/maximilienbornepro/tech-review" style="color:inherit">tech-review</a> (privé).</p>
   </footer>
+
+  <!-- ─── TV remote spatial navigation ────────────────────────────────
+       Vanilla JS, zero dependency, runs on:
+         - Samsung Tizen (uses standard arrow keys + Enter, BACK=10009)
+         - LG WebOS (BACK=461)
+         - Hisense Vidaa, Philips, Sony, etc.
+         - PC browsers for testing (arrows + Enter + Escape)
+       The script :
+         1. Marks every interactive item (url-btn, refresh-btn) with
+            a `tv-focusable` class.
+         2. Auto-focuses the first preview URL on page load.
+         3. Implements 2D spatial nav : ←↑→↓ pick the closest
+            focusable item in the requested direction.
+         4. Enter = native click (handled by the browser).
+         5. Refresh button reloads the page + spins its icon.
+  ──────────────────────────────────────────────────────────────────── -->
+  <script>
+    (function () {
+      'use strict';
+
+      var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, ESC: 27,
+                  SAMSUNG_BACK: 10009, WEBOS_BACK: 461,
+                  // Some TVs send keyCode 0 with a `key` value instead.
+                  K_LEFT: 'ArrowLeft', K_UP: 'ArrowUp', K_RIGHT: 'ArrowRight',
+                  K_DOWN: 'ArrowDown', K_ENTER: 'Enter' };
+
+      function getFocusables() {
+        // Dynamic — rebuilt on demand so re-renders (preview JS
+        // updates, refresh, etc.) don't leave the script with stale
+        // references. Order matters : refresh first, then cards
+        // top-to-bottom (which matches DOM order since the grid is
+        // a CSS auto-fill).
+        var items = [];
+        var refresh = document.getElementById('refreshBtn');
+        if (refresh) items.push(refresh);
+        var urls = document.querySelectorAll('.url-btn:not(.disabled)');
+        for (var i = 0; i < urls.length; i++) items.push(urls[i]);
+        // Apply the class + tabindex so CSS + browser focus traversal
+        // both work. Idempotent : safe to call repeatedly.
+        for (var j = 0; j < items.length; j++) {
+          items[j].classList.add('tv-focusable');
+          if (items[j].tabIndex < 0) items[j].tabIndex = 0;
+        }
+        return items;
+      }
+
+      function rectCenter(r) { return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
+
+      function findClosest(direction) {
+        var items = getFocusables();
+        var current = document.activeElement;
+        if (!current || items.indexOf(current) === -1) return items[0] || null;
+        var curRect = current.getBoundingClientRect();
+        var curC = rectCenter(curRect);
+        var best = null;
+        var bestScore = Infinity;
+        for (var i = 0; i < items.length; i++) {
+          var el = items[i];
+          if (el === current) continue;
+          var r = el.getBoundingClientRect();
+          var c = rectCenter(r);
+          var dx = c.x - curC.x;
+          var dy = c.y - curC.y;
+          // Threshold (5 px) avoids matching items that are visually
+          // on the same line / column due to sub-pixel positioning.
+          var inDir = false, primary = 0, secondary = 0;
+          if (direction === 'up')    { inDir = dy < -5; primary = -dy; secondary = Math.abs(dx); }
+          if (direction === 'down')  { inDir = dy >  5; primary =  dy; secondary = Math.abs(dx); }
+          if (direction === 'left')  { inDir = dx < -5; primary = -dx; secondary = Math.abs(dy); }
+          if (direction === 'right') { inDir = dx >  5; primary =  dx; secondary = Math.abs(dy); }
+          if (!inDir) continue;
+          // Score : primary distance + heavily weighted secondary
+          // axis distance. The 2× weight encourages staying on the
+          // same row / column when possible — feels natural on TV
+          // (« next card to the right ») rather than « closest by
+          // raw euclidean ».
+          var score = primary + secondary * 2;
+          if (score < bestScore) { bestScore = score; best = el; }
+        }
+        return best;
+      }
+
+      function keyToDirection(e) {
+        switch (e.keyCode) {
+          case KEY.LEFT:  return 'left';
+          case KEY.UP:    return 'up';
+          case KEY.RIGHT: return 'right';
+          case KEY.DOWN:  return 'down';
+        }
+        // Some browsers / TV firmwares send keyCode=0 with a `key`
+        // string instead. Fallback.
+        if (e.key === KEY.K_LEFT)  return 'left';
+        if (e.key === KEY.K_UP)    return 'up';
+        if (e.key === KEY.K_RIGHT) return 'right';
+        if (e.key === KEY.K_DOWN)  return 'down';
+        return null;
+      }
+
+      function handleKey(e) {
+        var direction = keyToDirection(e);
+        if (direction) {
+          var next = findClosest(direction);
+          if (next) {
+            e.preventDefault();
+            next.focus();
+          }
+          return;
+        }
+        // Enter — let the browser activate the focused link/button
+        // natively. We only intercept arrows.
+        if (e.keyCode === KEY.SAMSUNG_BACK || e.keyCode === KEY.WEBOS_BACK || e.keyCode === KEY.ESC) {
+          // No-op : single-page app, nothing to go back to. We swallow
+          // the event so the TV doesn't close our app though — on
+          // Tizen that's NOT the default behaviour, leaving the
+          // listener empty is what we want.
+        }
+      }
+
+      // Auto-focus the first preview URL once everything has settled.
+      // setTimeout=80 covers the case where the browser is still
+      // calculating layout (TVs are slow) and the first
+      // getBoundingClientRect() would be wrong.
+      function autoFocus() {
+        var items = getFocusables();
+        var firstUrl = document.querySelector('.url-btn:not(.disabled)');
+        var target = firstUrl || document.getElementById('refreshBtn');
+        if (target) {
+          try { target.focus(); } catch (e) { /* ignore TV quirks */ }
+        }
+      }
+
+      // Keep the focused element in view — TV browsers don't always
+      // scroll automatically when focus leaves the viewport.
+      function ensureVisible(el) {
+        if (!el || typeof el.scrollIntoView !== 'function') return;
+        // 'center' keeps the focused card in the middle of the screen,
+        // which is the safest default on a 1080p/4K TV.
+        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        catch (e) { el.scrollIntoView(); /* old browsers */ }
+      }
+
+      // Refresh button : full page reload + visual feedback.
+      // window.location.reload(true) bypasses the cache on browsers
+      // that still honour the legacy boolean parameter (Tizen).
+      function wireRefresh() {
+        var btn = document.getElementById('refreshBtn');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          btn.classList.add('is-spinning');
+          // Tiny defer so the spin starts before the reload kicks in,
+          // giving the user visual confirmation that the click registered.
+          setTimeout(function () { window.location.reload(); }, 50);
+        });
+      }
+
+      // Boot sequence.
+      document.addEventListener('DOMContentLoaded', function () {
+        getFocusables();
+        wireRefresh();
+        setTimeout(autoFocus, 80);
+      });
+      document.addEventListener('keydown', handleKey, true);
+      document.addEventListener('focusin', function (e) {
+        if (e.target && e.target.classList && e.target.classList.contains('tv-focusable')) {
+          ensureVisible(e.target);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
