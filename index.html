@@ -60,25 +60,64 @@
     .refresh-btn.is-spinning .refresh-icon { animation: spin 600ms linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-    /* ─── TV remote focus — visible at 3m on a 4K TV ───────────────
-       The default browser outline is barely visible on TV screens
-       (1-2px, neutral colour). We override with a thick gold ring +
-       a soft glow + a 4 % scale so the focus is obvious from a
-       living-room distance. */
+    /* ─── TV remote focus — built so the focused item is impossible
+       to miss from 3 m on a 4K screen. We :
+         - kill the default tiny browser outline
+         - apply a UNIVERSAL focus style to every element that gets
+           focus (cards, buttons, links — anything) so even if our
+           custom .tv-focusable class isn't applied, the focus is
+           still loud.
+         - layer 3 visual signals : thick gold outline + outer halo
+           + scale 1.06 — any one is enough to be visible.
+         - run a soft pulse animation on .tv-focusable to draw the
+           eye further.
+       Combined, a remote-control user CANNOT lose track of focus. */
     :focus { outline: none; }
-    .tv-focusable { /* applied via JS to every navigable item */ }
+    *:focus-visible,
+    *:focus {
+      outline: 6px solid var(--focus);
+      outline-offset: 4px;
+      box-shadow: 0 0 0 12px rgba(251,191,36,.18),
+                  0 0 64px 8px rgba(251,191,36,.55);
+    }
+
+    .tv-focusable { cursor: pointer; }
     .tv-focusable:focus,
     .tv-focusable:focus-visible {
-      outline: 4px solid var(--focus);
-      outline-offset: 4px;
-      box-shadow: 0 0 32px 4px rgba(251,191,36,.45);
-      transform: scale(1.04);
-      z-index: 10;
+      transform: scale(1.06);
+      z-index: 20;
       position: relative;
+      animation: tv-focus-pulse 1600ms ease-in-out infinite;
     }
-    /* Cards highlight when one of their children is focused, so the
-       eye reads the WHOLE card as the focus target on TV. */
-    .card:focus-within { border-color: var(--acc-strong); }
+    @keyframes tv-focus-pulse {
+      0%, 100% {
+        box-shadow: 0 0 0 12px rgba(251,191,36,.18),
+                    0 0 64px 8px rgba(251,191,36,.55);
+      }
+      50% {
+        box-shadow: 0 0 0 16px rgba(251,191,36,.28),
+                    0 0 96px 16px rgba(251,191,36,.75);
+      }
+    }
+
+    /* When the WHOLE card is focusable (TV mode), we make its visual
+       state way louder than its border-color tweak. Background lift +
+       brighter border. The inner url-btn becomes a passive visual
+       (no longer the focus target — Enter on the card opens it). */
+    .card.tv-focusable {
+      cursor: pointer;
+      outline-color: transparent;
+    }
+    .card.tv-focusable:focus,
+    .card.tv-focusable:focus-visible {
+      background: linear-gradient(180deg, rgba(251,191,36,.10), rgba(251,191,36,.04));
+      border-color: var(--focus);
+    }
+    .card.tv-focusable:focus .url-btn,
+    .card.tv-focusable:focus-visible .url-btn {
+      background: var(--focus);
+      color: #1a1100;
+    }
 
     /* ─── On-screen TV remote legend — hidden on desktop, shown
        on large screens (typically TVs). Helps users discover that
@@ -128,7 +167,7 @@
     </div>
   </main>
   <footer>
-    <p>Généré le <span id="ts">2026-05-21 07:49 UTC</span> · Source : <code>scripts/publish-previews-page.mjs</code> dans le repo <a href="https://github.com/maximilienbornepro/tech-review" style="color:inherit">tech-review</a> (privé).</p>
+    <p>Généré le <span id="ts">2026-05-21 07:53 UTC</span> · Source : <code>scripts/publish-previews-page.mjs</code> dans le repo <a href="https://github.com/maximilienbornepro/tech-review" style="color:inherit">tech-review</a> (privé).</p>
   </footer>
 
   <!-- ─── TV remote spatial navigation ────────────────────────────────
@@ -159,19 +198,45 @@
       function getFocusables() {
         // Dynamic — rebuilt on demand so re-renders (preview JS
         // updates, refresh, etc.) don't leave the script with stale
-        // references. Order matters : refresh first, then cards
-        // top-to-bottom (which matches DOM order since the grid is
-        // a CSS auto-fill).
+        // references.
+        //
+        // Strategy : the WHOLE CARD is the focusable unit, NOT the
+        // inner .url-btn. Why : on TV the user thinks « focus the
+        // app I want » → presses Enter → app opens. Stopping the
+        // focus on a tiny button inside the card requires more arrow
+        // presses + the focus ring is small. Card-as-unit gives a
+        // huge focus target + a single Enter to open.
+        //
+        // We disable focus on the inner url-btn (tabIndex = -1) so
+        // Tab traversal can't land there. The card holds a
+        // `data-target-url` attribute that the Enter handler reads.
         var items = [];
         var refresh = document.getElementById('refreshBtn');
-        if (refresh) items.push(refresh);
-        var urls = document.querySelectorAll('.url-btn:not(.disabled)');
-        for (var i = 0; i < urls.length; i++) items.push(urls[i]);
-        // Apply the class + tabindex so CSS + browser focus traversal
-        // both work. Idempotent : safe to call repeatedly.
-        for (var j = 0; j < items.length; j++) {
-          items[j].classList.add('tv-focusable');
-          if (items[j].tabIndex < 0) items[j].tabIndex = 0;
+        if (refresh) {
+          refresh.classList.add('tv-focusable');
+          if (refresh.tabIndex < 0) refresh.tabIndex = 0;
+          items.push(refresh);
+        }
+        var cards = document.querySelectorAll('.card');
+        for (var i = 0; i < cards.length; i++) {
+          var card = cards[i];
+          var url = card.querySelector('.url-btn:not(.disabled)');
+          if (!url) {
+            // Card with no active URL — don't make it focusable, but
+            // also strip any leftover focusability from a previous
+            // re-render.
+            card.removeAttribute('tabindex');
+            card.classList.remove('tv-focusable');
+            continue;
+          }
+          card.classList.add('tv-focusable');
+          card.tabIndex = 0;
+          card.setAttribute('data-target-url', url.getAttribute('href') || '');
+          // Make the inner link non-focusable so the card stays the
+          // single Tab stop. The href is still followed when we call
+          // `.click()` on it from the Enter handler.
+          url.tabIndex = -1;
+          items.push(card);
         }
         return items;
       }
@@ -238,24 +303,51 @@
           }
           return;
         }
-        // Enter — let the browser activate the focused link/button
-        // natively. We only intercept arrows.
+        // Enter / OK on the remote :
+        //  - on the refresh button → browser native click (handled).
+        //  - on a card → programmatically click the inner url-btn
+        //    so the link's href is followed (and any target=_blank
+        //    is honoured by the browser).
+        if (e.keyCode === KEY.ENTER || e.key === KEY.K_ENTER) {
+          var active = document.activeElement;
+          if (active && active.classList.contains('card') && active.hasAttribute('data-target-url')) {
+            var url = active.getAttribute('data-target-url');
+            if (url) {
+              e.preventDefault();
+              // Use the inner anchor's .click() so the browser
+              // applies its own target/rel handling — more reliable
+              // than location.href on TVs that pre-process anchors.
+              var inner = active.querySelector('.url-btn');
+              if (inner && typeof inner.click === 'function') {
+                inner.click();
+              } else {
+                window.location.href = url;
+              }
+            }
+          }
+          return;
+        }
         if (e.keyCode === KEY.SAMSUNG_BACK || e.keyCode === KEY.WEBOS_BACK || e.keyCode === KEY.ESC) {
-          // No-op : single-page app, nothing to go back to. We swallow
-          // the event so the TV doesn't close our app though — on
-          // Tizen that's NOT the default behaviour, leaving the
-          // listener empty is what we want.
+          // No-op : single-page app, nothing to go back to. We
+          // intentionally don't preventDefault so the TV firmware can
+          // close the app if the user really insists.
         }
       }
 
-      // Auto-focus the first preview URL once everything has settled.
+      // Auto-focus the first preview CARD once everything has settled.
       // setTimeout=80 covers the case where the browser is still
       // calculating layout (TVs are slow) and the first
       // getBoundingClientRect() would be wrong.
       function autoFocus() {
         var items = getFocusables();
-        var firstUrl = document.querySelector('.url-btn:not(.disabled)');
-        var target = firstUrl || document.getElementById('refreshBtn');
+        // First focusable card with an active URL — we explicitly
+        // prefer cards over the refresh button so the user lands on
+        // the actionable item (= « the preview to launch »).
+        var firstCard = null;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].classList.contains('card')) { firstCard = items[i]; break; }
+        }
+        var target = firstCard || document.getElementById('refreshBtn');
         if (target) {
           try { target.focus(); } catch (e) { /* ignore TV quirks */ }
         }
