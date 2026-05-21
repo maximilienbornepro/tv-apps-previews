@@ -60,6 +60,32 @@
     .refresh-btn.is-spinning .refresh-icon { animation: spin 600ms linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
+    /* ─── Exit button — same skeleton as refresh-btn, red-tinted so
+       it reads as a destructive action. Reachable both by remote
+       (Back key swallows to the same handler) and pointer. */
+    .exit-btn {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 120ms, border-color 120ms, transform 120ms, box-shadow 120ms;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .exit-btn:hover { background: rgba(239,68,68,.12); border-color: var(--bad); color: #ffd2d2; }
+    .exit-btn.is-leaving {
+      background: var(--bad);
+      color: #fff;
+      border-color: var(--bad);
+      pointer-events: none;
+    }
+
     /* ─── TV remote focus — built so the focused item is impossible
        to miss from 3 m on a 4K screen. We :
          - kill the default tiny browser outline
@@ -143,10 +169,15 @@
         <span class="remote-legend">
           <span><kbd>↑↓←→</kbd> naviguer</span>
           <span><kbd>OK</kbd> ouvrir</span>
+          <span><kbd>RETOUR</kbd> quitter</span>
         </span>
         <button id="refreshBtn" class="refresh-btn" type="button" aria-label="Rafraîchir la page">
           <span class="refresh-icon" aria-hidden="true">🔄</span>
           <span>Rafraîchir</span>
+        </button>
+        <button id="exitBtn" class="exit-btn" type="button" aria-label="Quitter la page">
+          <span aria-hidden="true">✕</span>
+          <span>Quitter</span>
         </button>
       </div>
     </div>
@@ -167,7 +198,7 @@
     </div>
   </main>
   <footer>
-    <p>Généré le <span id="ts">2026-05-21 07:53 UTC</span> · Source : <code>scripts/publish-previews-page.mjs</code> dans le repo <a href="https://github.com/maximilienbornepro/tech-review" style="color:inherit">tech-review</a> (privé).</p>
+    <p>Généré le <span id="ts">2026-05-21 08:04 UTC</span> · Source : <code>scripts/publish-previews-page.mjs</code> dans le repo <a href="https://github.com/maximilienbornepro/tech-review" style="color:inherit">tech-review</a> (privé).</p>
   </footer>
 
   <!-- ─── TV remote spatial navigation ────────────────────────────────
@@ -216,6 +247,12 @@
           refresh.classList.add('tv-focusable');
           if (refresh.tabIndex < 0) refresh.tabIndex = 0;
           items.push(refresh);
+        }
+        var exitBtn = document.getElementById('exitBtn');
+        if (exitBtn) {
+          exitBtn.classList.add('tv-focusable');
+          if (exitBtn.tabIndex < 0) exitBtn.tabIndex = 0;
+          items.push(exitBtn);
         }
         var cards = document.querySelectorAll('.card');
         for (var i = 0; i < cards.length; i++) {
@@ -328,10 +365,100 @@
           return;
         }
         if (e.keyCode === KEY.SAMSUNG_BACK || e.keyCode === KEY.WEBOS_BACK || e.keyCode === KEY.ESC) {
-          // No-op : single-page app, nothing to go back to. We
-          // intentionally don't preventDefault so the TV firmware can
-          // close the app if the user really insists.
+          // BACK on the remote / Escape on PC → exit the page.
+          // We preventDefault so the TV firmware's own back behaviour
+          // (which is often « do nothing » on a first-page browser
+          // session) doesn't run before us. We then go through the
+          // full multi-strategy exit ladder.
+          e.preventDefault();
+          exitApp();
+          return;
         }
+      }
+
+      /** Best-effort « close this page » that walks through every
+       *  exit channel available on TV browsers. Each strategy tries
+       *  to close and silently falls through to the next if it doesn't
+       *  actually exit. The order is from most-specific (Tizen native
+       *  app API) to most-generic (about:blank). */
+      function exitApp() {
+        var btn = document.getElementById('exitBtn');
+        if (btn) {
+          btn.classList.add('is-leaving');
+          var label = btn.querySelector('span:last-child');
+          if (label) label.textContent = 'Fermeture…';
+        }
+
+        // Tiny defer so the visual « Fermeture… » paints BEFORE the
+        // close blocks the UI thread. Without it some TVs leave the
+        // button in its old state until just before the exit.
+        setTimeout(function () {
+          // Strategy 1 — Samsung Tizen native app API. Only available
+          // when the page is loaded INSIDE a packaged Tizen widget
+          // (not via the browser opening a URL). Try anyway, it's a
+          // single try/catch.
+          try {
+            if (typeof window.tizen !== 'undefined' &&
+                window.tizen.application &&
+                typeof window.tizen.application.getCurrentApplication === 'function') {
+              window.tizen.application.getCurrentApplication().exit();
+              return;
+            }
+          } catch (e) { /* fall through */ }
+
+          // Strategy 2 — LG WebOS native back. Some WebOS browsers
+          // expose `window.webOS.platformBack()` which triggers the
+          // app launcher.
+          try {
+            if (typeof window.webOS !== 'undefined' &&
+                window.webOS.platformBack &&
+                typeof window.webOS.platformBack === 'function') {
+              window.webOS.platformBack();
+              return;
+            }
+          } catch (e) { /* fall through */ }
+
+          // Strategy 3 — history.back(). If the user reached this page
+          // by navigating from somewhere else (search engine, link),
+          // this puts them back where they came from — usually the
+          // expected behaviour when they press BACK on a remote.
+          if (window.history && window.history.length > 1) {
+            try {
+              window.history.back();
+              return;
+            } catch (e) { /* fall through */ }
+          }
+
+          // Strategy 4 — window.close(). On Samsung's built-in browser
+          // and many TV browsers this closes the active tab/window.
+          // On desktop browsers it only works if the window was
+          // opened by script ; here we try anyway, it's harmless.
+          try {
+            window.close();
+            // window.close() does NOT return false on rejection ; the
+            // page just stays open. We check after a tick whether
+            // we're still alive and fall through.
+          } catch (e) { /* fall through */ }
+
+          // Strategy 5 — last-resort navigation to about:blank. Most
+          // TV browsers then either close the tab automatically or
+          // show their start page, which the user can dismiss with
+          // their normal HOME/EXIT key on the remote.
+          setTimeout(function () {
+            try {
+              window.location.href = 'about:blank';
+            } catch (e) {
+              // Truly nothing we can do at this point — restore the
+              // button so the user isn't stuck on an « Fermeture… »
+              // state that never resolves.
+              if (btn) {
+                btn.classList.remove('is-leaving');
+                var label2 = btn.querySelector('span:last-child');
+                if (label2) label2.textContent = 'Quitter';
+              }
+            }
+          }, 200);
+        }, 60);
       }
 
       // Auto-focus the first preview CARD once everything has settled.
@@ -377,10 +504,23 @@
         });
       }
 
+      // Exit button : same handler as the BACK key. Both routes
+      // (visible button + remote key) end in exitApp() for a single
+      // code path.
+      function wireExit() {
+        var btn = document.getElementById('exitBtn');
+        if (!btn) return;
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          exitApp();
+        });
+      }
+
       // Boot sequence.
       document.addEventListener('DOMContentLoaded', function () {
         getFocusables();
         wireRefresh();
+        wireExit();
         setTimeout(autoFocus, 80);
       });
       document.addEventListener('keydown', handleKey, true);
